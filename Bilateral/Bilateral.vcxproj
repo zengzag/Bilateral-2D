@@ -153,12 +153,14 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="bilateral.cpp" />
+    <ClCompile Include="Bilateral.cpp" />
     <ClCompile Include="demo.cpp" />
+    <ClCompile Include="GMM.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Bilateral.h" />
     <ClInclude Include="gcgraph.hpp" />
-    <ClInclude Include="GMMs.hpp" />
+    <ClInclude Include="GMM.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

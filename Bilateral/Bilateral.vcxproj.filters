@@ -18,16 +18,22 @@
     <ClCompile Include="demo.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
-    <ClCompile Include="bilateral.cpp">
+    <ClCompile Include="Bilateral.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="GMM.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="gcgraph.hpp">
-      <Filter>源文件</Filter>
+    <ClInclude Include="Bilateral.h">
+      <Filter>头文件</Filter>
     </ClInclude>
-    <ClInclude Include="GMMs.hpp">
-      <Filter>源文件</Filter>
+    <ClInclude Include="GMM.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="gcgraph.hpp">
+      <Filter>头文件</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>
