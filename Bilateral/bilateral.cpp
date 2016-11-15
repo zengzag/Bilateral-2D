@@ -105,7 +105,7 @@ void Bilateral::initGrid() {
 	int ySize = imgSrc.cols;
 	for (int x = 0; x < xSize; x++)
 	{
-		for (int y = 0; y < xSize; y++)
+		for (int y = 0; y < ySize; y++)
 		{
 			int xNew = gridSize[1] * x / xSize ;
 			int yNew = gridSize[2] * y / ySize ;
@@ -117,12 +117,166 @@ void Bilateral::initGrid() {
 			grid.at<Vec2i>(point)[0] += 1;
 		}
 	}
+
 	int point[6] = { 0,0,0,26,20,17 };
 	std::cout << grid.at<Vec2i>(point) << std::endl;
 }
 
+void Bilateral::constructGCGraph(const GMM& bgdGMM, const GMM& fgdGMM, GCGraph<double>& graph) {
+	int vtxCount = calculateVtxCount();  //顶点数，每一个像素是一个顶点  
+	int edgeCount = 2 * 6 * vtxCount;  //边数，需要考虑图边界的边的缺失
+	graph.create(vtxCount, edgeCount);
+	
+	for (int t = 0; t < gridSize[0]; t++)
+	{
+		for (int x = 0; x < gridSize[1]; x++)
+		{
+			for (int y = 0; y < gridSize[2]; y++)
+			{
+				for (int r = 0; r < gridSize[3]; r++) 
+				{
+					for (int g = 0; g < gridSize[4]; g++)
+					{
+						for (int b = 0; b < gridSize[5]; b++)
+						{
+							int point[6] = { t,x,y,r,g,b };
 
+							if (grid.at<Vec2i>(point)[0] > 0) {
+								int vtxIdx = graph.addVtx();//存在像素点映射就加顶点
 
-void Bilateral::run() {
+								//先验项
+								grid.at<Vec2i>(point)[1] = vtxIdx;
+								Vec3b color;//计算grid中顶点对应的颜色
+								color[0] = (r * 256 + 0.5 * 256) / gridSize[3];//多加0.5是为了把颜色移到方格中心
+								color[1] = (g * 256 + 0.5 * 256) / gridSize[4];
+								color[2] = (b * 256 + 0.5 * 256) / gridSize[5];
+								double fromSource, toSink;
+								fromSource = -log(bgdGMM(color));
+								toSink = -log(fgdGMM(color));
+								graph.addTermWeights(vtxIdx, fromSource, toSink);
+
+								//平滑项
+								if (t > 0) {
+									int pointN[6] = { t-1,x,y,r,g,b };
+									if (grid.at<Vec2i>(pointN)[0] > 0) {
+										double w = 1 * grid.at<Vec2i>(point)[0] * grid.at<Vec2i>(pointN)[0];
+										w = sqrt(w);
+										graph.addEdges(vtxIdx, grid.at<Vec2i>(pointN)[1], w, w);
+									}
+								}
+								if (x > 0) {
+									int pointN[6] = { t,x-1,y,r,g,b };
+									if (grid.at<Vec2i>(pointN)[0] > 0) {
+										double w = 1 * grid.at<Vec2i>(point)[0] * grid.at<Vec2i>(pointN)[0];
+										w = sqrt(w);
+										graph.addEdges(vtxIdx, grid.at<Vec2i>(pointN)[1], w, w);
+									}
+								}
+								if (y > 0) {
+									int pointN[6] = { t,x,y - 1,r,g,b };
+									if (grid.at<Vec2i>(pointN)[0] > 0) {
+										double w = 1 * grid.at<Vec2i>(point)[0] * grid.at<Vec2i>(pointN)[0];
+										w = sqrt(w);
+										graph.addEdges(vtxIdx, grid.at<Vec2i>(pointN)[1], w, w);
+									}
+								}
+								if (r > 0) {
+									int pointN[6] = { t,x,y,r-1,g,b };
+									if (grid.at<Vec2i>(pointN)[0] > 0) {
+										double w = 1 * grid.at<Vec2i>(point)[0] * grid.at<Vec2i>(pointN)[0];
+										w = sqrt(w);
+										graph.addEdges(vtxIdx, grid.at<Vec2i>(pointN)[1], w, w);
+									}
+								}								
+								if (g > 0) {
+									int pointN[6] = { t,x,y,r,g-1,b };
+									if (grid.at<Vec2i>(pointN)[0] > 0) {
+										double w = 1 * grid.at<Vec2i>(point)[0] * grid.at<Vec2i>(pointN)[0];
+										w = sqrt(w);
+										graph.addEdges(vtxIdx, grid.at<Vec2i>(pointN)[1], w, w);
+									}
+								}
+								if (b > 0) {
+									int pointN[6] = { t,x,y,r,g,b-1 };
+									if (grid.at<Vec2i>(pointN)[0] > 0) {
+										double w = 1 * grid.at<Vec2i>(point)[0] * grid.at<Vec2i>(pointN)[0];
+										w = sqrt(w);
+										graph.addEdges(vtxIdx, grid.at<Vec2i>(pointN)[1], w, w);
+									}
+								}
+							}
+						}
+					}
+				}
+
+			}
+		}
+	}
+}
+
+int Bilateral::calculateVtxCount() {
+	int count=0;
+	for (int t = 0; t < gridSize[0]; t++)
+	{
+		for (int x = 0; x < gridSize[1]; x++)
+		{
+			for (int y = 0; y < gridSize[2]; y++)
+			{
+				for (int r = 0; r < gridSize[3]; r++)
+				{
+					for (int g = 0; g < gridSize[4]; g++)
+					{
+						for (int b = 0; b < gridSize[5]; b++)
+						{
+							int point[6] = { t,x,y,r,g,b };
+							if (grid.at<Vec2i>(point)[0] > 0) {
+								count++;
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	return count;
+}
+
+void Bilateral::estimateSegmentation(GCGraph<double>& graph, Mat& mask) {
+	graph.maxFlow();//最大流图割
+
+	Point p;
+	for (p.y = 0; p.y < mask.rows; p.y++)
+	{
+		for (p.x = 0; p.x < mask.cols; p.x++)
+		{
+
+			int point[6] = {0,0,0,0,0,0};
+			getGridPoint(p, point);
+			int vertex = grid.at<Vec2i>(point)[1];
+			if (graph.inSourceSegment(vertex))
+				mask.at<uchar>(p) = 1;
+			else
+				mask.at<uchar>(p) = 0;
+		}
+	}
+
+}
+
+void Bilateral::getGridPoint(const Point p,int *point) {
+	point[0] = 0;
+	point[1] = gridSize[1] * p.x / imgSrc.rows;
+	point[2] = gridSize[2] * p.y / imgSrc.cols;
+	Vec3b color = (Vec3b)imgSrc.at<Vec3b>(p.x, p.y);
+	point[3] = gridSize[3] * color[0] / 256;
+	point[4] = gridSize[4] * color[1] / 256;
+	point[5] = gridSize[5] * color[2] / 256;
+}
+
+void Bilateral::run(Mat& mask) {
+	GMM bgdGMM(bgModel), fgdGMM(fgModel);//前背景模型
+	GCGraph<double> graph;//图割
+	mask = Mat::zeros(imgSrc.cols, imgSrc.rows, CV_8UC1);
 	initGrid();
+	constructGCGraph(bgdGMM, fgdGMM, graph);
+	estimateSegmentation(graph, mask);
 }

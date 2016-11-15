@@ -19,10 +19,14 @@ public:
 	Bilateral(Mat& img);
 	~Bilateral();
 	void InitGmms(std::vector<Point>& forPts, std::vector<Point>& bacPts);
-	void run();
+	void run(Mat& );
 private:
 	bool isPtInVector(Point pt, std::vector<Point>& points);
 	void initGrid();
+	void constructGCGraph(const GMM&, const GMM&, GCGraph<double>& graph);
+	int calculateVtxCount();
+	void estimateSegmentation(GCGraph<double>&, Mat&);
+	void getGridPoint(const Point p, int *);
 };
 
 #endif
