@@ -117,9 +117,6 @@ void Bilateral::initGrid() {
 			grid.at<Vec2i>(point)[0] += 1;
 		}
 	}
-
-	int point[6] = { 0,0,0,26,20,17 };
-	std::cout << grid.at<Vec2i>(point) << std::endl;
 }
 
 void Bilateral::constructGCGraph(const GMM& bgdGMM, const GMM& fgdGMM, GCGraph<double>& graph) {
@@ -147,9 +144,9 @@ void Bilateral::constructGCGraph(const GMM& bgdGMM, const GMM& fgdGMM, GCGraph<d
 								//先验项
 								grid.at<Vec2i>(point)[1] = vtxIdx;
 								Vec3b color;//计算grid中顶点对应的颜色
-								color[0] = (r * 256 + 0.5 * 256) / gridSize[3];//多加0.5是为了把颜色移到方格中心
-								color[1] = (g * 256 + 0.5 * 256) / gridSize[4];
-								color[2] = (b * 256 + 0.5 * 256) / gridSize[5];
+								color[0] = (r * 256 + 256/2) / gridSize[3];//多加0.5是为了把颜色移到方格中心
+								color[1] = (g * 256 + 256/2) / gridSize[4];
+								color[2] = (b * 256 + 256/2) / gridSize[5];
 								double fromSource, toSink;
 								fromSource = -log(bgdGMM(color));
 								toSink = -log(fgdGMM(color));
@@ -245,18 +242,18 @@ void Bilateral::estimateSegmentation(GCGraph<double>& graph, Mat& mask) {
 	graph.maxFlow();//最大流图割
 
 	Point p;
-	for (p.y = 0; p.y < mask.rows; p.y++)
+	for (p.y = 0; p.y < mask.cols; p.y++)
 	{
-		for (p.x = 0; p.x < mask.cols; p.x++)
+		for (p.x = 0; p.x < mask.rows; p.x++)
 		{
 
 			int point[6] = {0,0,0,0,0,0};
 			getGridPoint(p, point);
 			int vertex = grid.at<Vec2i>(point)[1];
 			if (graph.inSourceSegment(vertex))
-				mask.at<uchar>(p) = 1;
+				mask.at<uchar>(p.x,p.y) = 0;
 			else
-				mask.at<uchar>(p) = 0;
+				mask.at<uchar>(p.x, p.y) = 1;
 		}
 	}
 
@@ -275,7 +272,7 @@ void Bilateral::getGridPoint(const Point p,int *point) {
 void Bilateral::run(Mat& mask) {
 	GMM bgdGMM(bgModel), fgdGMM(fgModel);//前背景模型
 	GCGraph<double> graph;//图割
-	mask = Mat::zeros(imgSrc.cols, imgSrc.rows, CV_8UC1);
+	mask = Mat::zeros(imgSrc.rows, imgSrc.cols, CV_8UC1);
 	initGrid();
 	constructGCGraph(bgdGMM, fgdGMM, graph);
 	estimateSegmentation(graph, mask);
