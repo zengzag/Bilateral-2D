@@ -14,6 +14,7 @@ void Bilateral::InitGmms(std::vector<Point>& forPts, std::vector<Point>& bacPts)
 	std::vector<Point> m_backPts;      //保存背景点
 	std::vector<Vec3f> bgdSamples;    //从背景点存储背景颜色
 	std::vector<Vec3f> fgdSamples;    //从前景点存储前景颜色
+
 	//清除重复的点
 	m_forePts.clear();
 	for (int i = 0;i<forPts.size();i++)
@@ -27,6 +28,23 @@ void Bilateral::InitGmms(std::vector<Point>& forPts, std::vector<Point>& bacPts)
 		if (!isPtInVector(bacPts[i], m_backPts))
 			m_backPts.push_back(bacPts[i]);
 	}
+
+	//对应grid点保存
+	for (int i = 0;i<m_forePts.size();i++)
+	{
+		std::vector<int> gridPoint(6);
+		getGridPoint(m_forePts[i], gridPoint);
+		grid_forePts.push_back(gridPoint);
+	}
+	for (int i = 0;i<m_backPts.size();i++)
+	{
+		std::vector<int> gridPoint(6);
+		getGridPoint(m_backPts[i], gridPoint);
+		grid_backPts.push_back(gridPoint);
+	}
+
+
+
 	//添加点的颜色数据
 	for (int i = 0;i<m_forePts.size();i++)
 	{
@@ -124,18 +142,12 @@ void Bilateral::constructGCGraph(const GMM& bgdGMM, const GMM& fgdGMM, GCGraph<d
 	int edgeCount = 2 * 6 * vtxCount;  //边数，需要考虑图边界的边的缺失
 	graph.create(vtxCount, edgeCount);
 	
-	for (int t = 0; t < gridSize[0]; t++)
-	{
-		for (int x = 0; x < gridSize[1]; x++)
-		{
-			for (int y = 0; y < gridSize[2]; y++)
-			{
-				for (int r = 0; r < gridSize[3]; r++) 
-				{
-					for (int g = 0; g < gridSize[4]; g++)
-					{
-						for (int b = 0; b < gridSize[5]; b++)
-						{
+	for (int t = 0; t < gridSize[0]; t++){
+		for (int x = 0; x < gridSize[1]; x++){
+			for (int y = 0; y < gridSize[2]; y++){
+				for (int r = 0; r < gridSize[3]; r++) {
+					for (int g = 0; g < gridSize[4]; g++){
+						for (int b = 0; b < gridSize[5]; b++){
 							int point[6] = { t,x,y,r,g,b };
 
 							if (grid.at<Vec2i>(point)[0] > 0) {
@@ -156,7 +168,7 @@ void Bilateral::constructGCGraph(const GMM& bgdGMM, const GMM& fgdGMM, GCGraph<d
 								if (t > 0) {
 									int pointN[6] = { t-1,x,y,r,g,b };
 									if (grid.at<Vec2i>(pointN)[0] > 0) {
-										double w = 1 * grid.at<Vec2i>(point)[0] * grid.at<Vec2i>(pointN)[0];
+										double w = 0.5 * grid.at<Vec2i>(point)[0] * grid.at<Vec2i>(pointN)[0];
 										w = sqrt(w);
 										graph.addEdges(vtxIdx, grid.at<Vec2i>(pointN)[1], w, w);
 									}
@@ -164,7 +176,7 @@ void Bilateral::constructGCGraph(const GMM& bgdGMM, const GMM& fgdGMM, GCGraph<d
 								if (x > 0) {
 									int pointN[6] = { t,x-1,y,r,g,b };
 									if (grid.at<Vec2i>(pointN)[0] > 0) {
-										double w = 1 * grid.at<Vec2i>(point)[0] * grid.at<Vec2i>(pointN)[0];
+										double w = 0.5 * grid.at<Vec2i>(point)[0] * grid.at<Vec2i>(pointN)[0];
 										w = sqrt(w);
 										graph.addEdges(vtxIdx, grid.at<Vec2i>(pointN)[1], w, w);
 									}
@@ -172,7 +184,7 @@ void Bilateral::constructGCGraph(const GMM& bgdGMM, const GMM& fgdGMM, GCGraph<d
 								if (y > 0) {
 									int pointN[6] = { t,x,y - 1,r,g,b };
 									if (grid.at<Vec2i>(pointN)[0] > 0) {
-										double w = 1 * grid.at<Vec2i>(point)[0] * grid.at<Vec2i>(pointN)[0];
+										double w = 0.5 * grid.at<Vec2i>(point)[0] * grid.at<Vec2i>(pointN)[0];
 										w = sqrt(w);
 										graph.addEdges(vtxIdx, grid.at<Vec2i>(pointN)[1], w, w);
 									}
@@ -180,7 +192,7 @@ void Bilateral::constructGCGraph(const GMM& bgdGMM, const GMM& fgdGMM, GCGraph<d
 								if (r > 0) {
 									int pointN[6] = { t,x,y,r-1,g,b };
 									if (grid.at<Vec2i>(pointN)[0] > 0) {
-										double w = 1 * grid.at<Vec2i>(point)[0] * grid.at<Vec2i>(pointN)[0];
+										double w = 0.2 * grid.at<Vec2i>(point)[0] * grid.at<Vec2i>(pointN)[0];
 										w = sqrt(w);
 										graph.addEdges(vtxIdx, grid.at<Vec2i>(pointN)[1], w, w);
 									}
@@ -188,7 +200,7 @@ void Bilateral::constructGCGraph(const GMM& bgdGMM, const GMM& fgdGMM, GCGraph<d
 								if (g > 0) {
 									int pointN[6] = { t,x,y,r,g-1,b };
 									if (grid.at<Vec2i>(pointN)[0] > 0) {
-										double w = 1 * grid.at<Vec2i>(point)[0] * grid.at<Vec2i>(pointN)[0];
+										double w = 0.2 * grid.at<Vec2i>(point)[0] * grid.at<Vec2i>(pointN)[0];
 										w = sqrt(w);
 										graph.addEdges(vtxIdx, grid.at<Vec2i>(pointN)[1], w, w);
 									}
@@ -196,7 +208,7 @@ void Bilateral::constructGCGraph(const GMM& bgdGMM, const GMM& fgdGMM, GCGraph<d
 								if (b > 0) {
 									int pointN[6] = { t,x,y,r,g,b-1 };
 									if (grid.at<Vec2i>(pointN)[0] > 0) {
-										double w = 1 * grid.at<Vec2i>(point)[0] * grid.at<Vec2i>(pointN)[0];
+										double w = 0.2 * grid.at<Vec2i>(point)[0] * grid.at<Vec2i>(pointN)[0];
 										w = sqrt(w);
 										graph.addEdges(vtxIdx, grid.at<Vec2i>(pointN)[1], w, w);
 									}
@@ -209,7 +221,34 @@ void Bilateral::constructGCGraph(const GMM& bgdGMM, const GMM& fgdGMM, GCGraph<d
 			}
 		}
 	}
+
+	for (int i = 0;i < grid_forePts.size();i++) {
+		int point[6] = { 0,0,0,0,0,0 };
+		point[0] = grid_forePts[i][0];
+		point[1] = grid_forePts[i][1];
+		point[2] = grid_forePts[i][2];
+		point[3] = grid_forePts[i][3];
+		point[4] = grid_forePts[i][4];
+		point[5] = grid_forePts[i][5];
+		if (grid.at<Vec2i>(point)[1] != 0) {
+			graph.addTermWeights(grid.at<Vec2i>(point)[1], 0, 9999);
+		}
+	}
+	for (int i = 0;i < grid_backPts.size();i++) {
+		int point[6] = { 0,0,0,0,0,0 };
+		point[0] = grid_backPts[i][0];
+		point[1] = grid_backPts[i][1];
+		point[2] = grid_backPts[i][2];
+		point[3] = grid_backPts[i][3];
+		point[4] = grid_backPts[i][4];
+		point[5] = grid_backPts[i][5];
+		if (grid.at<Vec2i>(point)[1] != 0) {
+			graph.addTermWeights(grid.at<Vec2i>(point)[1], 9999, 0);
+		}
+	}
+
 }
+
 
 int Bilateral::calculateVtxCount() {
 	int count=0;
@@ -264,6 +303,16 @@ void Bilateral::getGridPoint(const Point p,int *point) {
 	point[1] = gridSize[1] * p.x / imgSrc.rows;
 	point[2] = gridSize[2] * p.y / imgSrc.cols;
 	Vec3b color = (Vec3b)imgSrc.at<Vec3b>(p.x, p.y);
+	point[3] = gridSize[3] * color[0] / 256;
+	point[4] = gridSize[4] * color[1] / 256;
+	point[5] = gridSize[5] * color[2] / 256;
+}
+
+void Bilateral::getGridPoint(const Point p, std::vector<int>& point) {
+	point[0] = 0;
+	point[1] = gridSize[1] * p.y / imgSrc.rows;
+	point[2] = gridSize[2] * p.x / imgSrc.cols;//x,y互换、由于p坐标存错，导致的问题。
+	Vec3b color = (Vec3b)imgSrc.at<Vec3b>(p);
 	point[3] = gridSize[3] * color[0] / 256;
 	point[4] = gridSize[4] * color[1] / 256;
 	point[5] = gridSize[5] * color[2] / 256;
