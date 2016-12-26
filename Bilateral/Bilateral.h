@@ -13,8 +13,8 @@ class Bilateral
 public:
 	Mat imgSrc;		//输入图片数据
 	Mat bgModel, fgModel;	//前背景高斯模型
-	Mat grid;	//升维，平均取点，得到的grid。6维数组，保存顶点值与邻近像素点总数。
-	const int gridSize[6] = { 1,20,20,16,16,16 };	//grid各个维度的大小,按顺序来为：t,x,y,r,g,b。
+	Mat grid, gridColor;	//升维，平均取点，得到的grid。6维数组，保存顶点值与邻近像素点总数。
+	const int gridSize[6] = { 1,20,30,16,16,16 };	//grid各个维度的大小,按顺序来为：t,x,y,r,g,b。
 	std::vector<std::vector<int> > grid_forePts;      //前景grid点
 	std::vector<std::vector<int> > grid_backPts;      //背景grid点
 public:

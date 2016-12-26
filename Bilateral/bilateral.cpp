@@ -118,7 +118,8 @@ bool Bilateral::isPtInVector(Point pt, std::vector<Point>& points)
 void Bilateral::initGrid() {
 	Mat L(6, gridSize, CV_32SC(2), Scalar::all(0));
 	grid = L;
-	
+	Mat C(6, gridSize, CV_32FC(3), Scalar::all(0));
+	gridColor = C;
 	int xSize = imgSrc.rows;
 	int ySize = imgSrc.cols;
 	for (int x = 0; x < xSize; x++)
@@ -132,14 +133,62 @@ void Bilateral::initGrid() {
 			int gNew = gridSize[4] * color[1] / 256;
 			int bNew = gridSize[5] * color[2] / 256;
 			int point[6] = { 0,xNew,yNew,rNew,gNew,bNew };
-			grid.at<Vec2i>(point)[0] += 1;
+			int count = ++(grid.at<Vec2i>(point)[0]);
+			Vec3f colorMeans = gridColor.at<Vec3f>(point);
+			colorMeans[0] = colorMeans[0] * (count - 1.0) / (count + 0.0) + color[0] / (count + 0.0);
+			colorMeans[1] = colorMeans[1] * (count - 1.0) / (count + 0.0) + color[1] / (count + 0.0);
+			colorMeans[2] = colorMeans[2] * (count - 1.0) / (count + 0.0) + color[2] / (count + 0.0);
+			gridColor.at<Vec3f>(point) = colorMeans;
 		}
 	}
 }
 
+
+static double calcBeta(const Mat& img)
+{
+	double beta = 0;
+	for (int y = 0; y < img.rows; y++)
+	{
+		for (int x = 0; x < img.cols; x++)
+		{
+			//计算四个方向邻域两像素的差别，也就是欧式距离或者说二阶范数  
+			//（当所有像素都算完后，就相当于计算八邻域的像素差了）  
+			Vec3d color = img.at<Vec3b>(y, x);
+			if (x > 0) // left  >0的判断是为了避免在图像边界的时候还计算，导致越界  
+			{
+				Vec3d diff = color - (Vec3d)img.at<Vec3b>(y, x - 1);
+				beta += diff.dot(diff);  //矩阵的点乘，也就是各个元素平方的和  
+			}
+			if (y > 0 && x > 0) // upleft  
+			{
+				Vec3d diff = color - (Vec3d)img.at<Vec3b>(y - 1, x - 1);
+				beta += diff.dot(diff);
+			}
+			if (y > 0) // up  
+			{
+				Vec3d diff = color - (Vec3d)img.at<Vec3b>(y - 1, x);
+				beta += diff.dot(diff);
+			}
+			if (y > 0 && x < img.cols - 1) // upright  
+			{
+				Vec3d diff = color - (Vec3d)img.at<Vec3b>(y - 1, x + 1);
+				beta += diff.dot(diff);
+			}
+		}
+	}
+	if (beta <= std::numeric_limits<double>::epsilon())
+		beta = 0;
+	else
+		beta = 1.f / (2 * beta / (4 * img.cols*img.rows - 3 * img.cols - 3 * img.rows + 2)); //论文公式（5）  
+
+	return beta;
+}
+
+
 void Bilateral::constructGCGraph(const GMM& bgdGMM, const GMM& fgdGMM, GCGraph<double>& graph) {
+	double bata = 0.001;
 	int vtxCount = calculateVtxCount();  //顶点数，每一个像素是一个顶点  
-	int edgeCount = 2 * 6 * vtxCount;  //边数，需要考虑图边界的边的缺失
+	int edgeCount = 2 * 64 * vtxCount;  //边数，需要考虑图边界的边的缺失
 	graph.create(vtxCount, edgeCount);
 	
 	for (int t = 0; t < gridSize[0]; t++){
@@ -155,64 +204,39 @@ void Bilateral::constructGCGraph(const GMM& bgdGMM, const GMM& fgdGMM, GCGraph<d
 
 								//先验项
 								grid.at<Vec2i>(point)[1] = vtxIdx;
-								Vec3b color;//计算grid中顶点对应的颜色
-								color[0] = (r * 256 + 256/2) / gridSize[3];//多加0.5是为了把颜色移到方格中心
-								color[1] = (g * 256 + 256/2) / gridSize[4];
-								color[2] = (b * 256 + 256/2) / gridSize[5];
+								Vec3f color = gridColor.at<Vec3f>(point);
 								double fromSource, toSink;
-								fromSource = -log(bgdGMM(color));
-								toSink = -log(fgdGMM(color));
+								double num = grid.at<Vec< int, 2 > >(point)[0];
+
+								fromSource = -log(bgdGMM(color))* sqrt(num);
+								toSink = -log(fgdGMM(color))* sqrt(num);
 								graph.addTermWeights(vtxIdx, fromSource, toSink);
 
 								//平滑项
-								if (t > 0) {
-									int pointN[6] = { t-1,x,y,r,g,b };
-									if (grid.at<Vec2i>(pointN)[0] > 0) {
-										double w = 0.5 * grid.at<Vec2i>(point)[0] * grid.at<Vec2i>(pointN)[0];
-										w = sqrt(w);
-										graph.addEdges(vtxIdx, grid.at<Vec2i>(pointN)[1], w, w);
+								int count = 0;
+								for (int tN = t; tN > t - 2 && tN >= 0; tN--) {
+									for (int xN = x; xN > x - 2 && xN >= 0; xN--) {
+										for (int yN = y; yN > y - 2 && yN >= 0; yN--) {
+											for (int rN = r; rN > r - 2 && rN >= 0; rN--) {
+												for (int gN = g; gN > g - 2 && gN >= 0; gN--) {
+													for (int bN = b; bN > b - 2 && bN >= 0; bN--) {
+														int pointN[6] = { tN,xN,yN,rN,gN,bN };
+														count++;
+														if (grid.at<Vec< int, 2 > >(pointN)[0] > 0 && count > 1) {
+															double num = sqrt(grid.at<Vec< int, 2 > >(point)[0] * grid.at<Vec< int, 2 > >(pointN)[0] + 1);
+															Vec3d diff = (Vec3d)color - (Vec3d)gridColor.at<Vec3f>(pointN);
+															double e = exp(-bata*diff.dot(diff));  //矩阵的点乘，也就是各个元素平方的和
+															double w = e * sqrt(num);
+															graph.addEdges(vtxIdx, grid.at<Vec< int, 2 > >(pointN)[1], w, w);
+
+														}
+													}
+												}
+											}
+										}
 									}
 								}
-								if (x > 0) {
-									int pointN[6] = { t,x-1,y,r,g,b };
-									if (grid.at<Vec2i>(pointN)[0] > 0) {
-										double w = 0.5 * grid.at<Vec2i>(point)[0] * grid.at<Vec2i>(pointN)[0];
-										w = sqrt(w);
-										graph.addEdges(vtxIdx, grid.at<Vec2i>(pointN)[1], w, w);
-									}
-								}
-								if (y > 0) {
-									int pointN[6] = { t,x,y - 1,r,g,b };
-									if (grid.at<Vec2i>(pointN)[0] > 0) {
-										double w = 0.5 * grid.at<Vec2i>(point)[0] * grid.at<Vec2i>(pointN)[0];
-										w = sqrt(w);
-										graph.addEdges(vtxIdx, grid.at<Vec2i>(pointN)[1], w, w);
-									}
-								}
-								if (r > 0) {
-									int pointN[6] = { t,x,y,r-1,g,b };
-									if (grid.at<Vec2i>(pointN)[0] > 0) {
-										double w = 0.2 * grid.at<Vec2i>(point)[0] * grid.at<Vec2i>(pointN)[0];
-										w = sqrt(w);
-										graph.addEdges(vtxIdx, grid.at<Vec2i>(pointN)[1], w, w);
-									}
-								}								
-								if (g > 0) {
-									int pointN[6] = { t,x,y,r,g-1,b };
-									if (grid.at<Vec2i>(pointN)[0] > 0) {
-										double w = 0.2 * grid.at<Vec2i>(point)[0] * grid.at<Vec2i>(pointN)[0];
-										w = sqrt(w);
-										graph.addEdges(vtxIdx, grid.at<Vec2i>(pointN)[1], w, w);
-									}
-								}
-								if (b > 0) {
-									int pointN[6] = { t,x,y,r,g,b-1 };
-									if (grid.at<Vec2i>(pointN)[0] > 0) {
-										double w = 0.2 * grid.at<Vec2i>(point)[0] * grid.at<Vec2i>(pointN)[0];
-										w = sqrt(w);
-										graph.addEdges(vtxIdx, grid.at<Vec2i>(pointN)[1], w, w);
-									}
-								}
+
 							}
 						}
 					}
