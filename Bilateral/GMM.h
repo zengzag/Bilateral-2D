@@ -15,7 +15,7 @@ public:
 	int whichComponent(const Vec3d color) const;
 
 	void initLearning();
-	void addSample(int ci, const Vec3d color);
+	void addSample(int ci, const Vec3d color, double weight);
 	void endLearning();
 
 private:
@@ -30,8 +30,8 @@ private:
 
 	double sums[componentsCount][3];
 	double prods[componentsCount][3][3];
-	int sampleCounts[componentsCount];
-	int totalSampleCount;
+	double sampleCounts[componentsCount];
+	double totalSampleCount;
 };
 
 #endif

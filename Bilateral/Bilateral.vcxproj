@@ -154,8 +154,8 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="Bilateral.cpp" />
-    <ClCompile Include="demo.cpp" />
     <ClCompile Include="GMM.cpp" />
+    <ClCompile Include="main.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Bilateral.h" />

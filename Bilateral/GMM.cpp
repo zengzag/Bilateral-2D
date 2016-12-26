@@ -39,8 +39,12 @@ GMM::GMM(Mat& _model)
 double GMM::operator()(const Vec3d color) const
 {
 	double res = 0;
-	for (int ci = 0; ci < componentsCount; ci++)
+	double max = 0;
+	for (int ci = 0; ci < componentsCount; ci++) {
 		res += coefs[ci] * (*this)(ci, color);
+		/*res = (*this)(ci, color);
+		max = max < res ? res : max;*/
+	}
 	return res;
 }
 
@@ -99,14 +103,14 @@ void GMM::initLearning()
 //计计算这个高斯模型的参数的）增加样本像素。计算加入color这个像素后，像素集  
 //中所有像素的RGB三个通道的和sums（用来计算均值），还有它的prods（用来计算协方差），  
 //并且记录这个像素集的像素个数和总的像素个数（用来计算这个高斯模型的权值）。  
-void GMM::addSample(int ci, const Vec3d color)
+void GMM::addSample(int ci, const Vec3d color, double weight)
 {
-	sums[ci][0] += color[0]; sums[ci][1] += color[1]; sums[ci][2] += color[2];
-	prods[ci][0][0] += color[0] * color[0]; prods[ci][0][1] += color[0] * color[1]; prods[ci][0][2] += color[0] * color[2];
-	prods[ci][1][0] += color[1] * color[0]; prods[ci][1][1] += color[1] * color[1]; prods[ci][1][2] += color[1] * color[2];
-	prods[ci][2][0] += color[2] * color[0]; prods[ci][2][1] += color[2] * color[1]; prods[ci][2][2] += color[2] * color[2];
-	sampleCounts[ci]++;
-	totalSampleCount++;
+	sums[ci][0] += color[0] * weight; sums[ci][1] += color[1] * weight; sums[ci][2] += color[2] * weight;
+	prods[ci][0][0] += color[0] * color[0] * weight; prods[ci][0][1] += color[0] * color[1] * weight; prods[ci][0][2] += color[0] * color[2] * weight;
+	prods[ci][1][0] += color[1] * color[0] * weight; prods[ci][1][1] += color[1] * color[1] * weight; prods[ci][1][2] += color[1] * color[2] * weight;
+	prods[ci][2][0] += color[2] * color[0] * weight; prods[ci][2][1] += color[2] * color[1] * weight; prods[ci][2][2] += color[2] * color[2] * weight;
+	sampleCounts[ci] += weight;
+	totalSampleCount += weight;
 }
 
 //从图像数据中学习GMM的参数：每一个高斯分量的权值、均值和协方差矩阵；  
@@ -116,7 +120,7 @@ void GMM::endLearning()
 	const double variance = 0.01;
 	for (int ci = 0; ci < componentsCount; ci++)
 	{
-		int n = sampleCounts[ci]; //第ci个高斯模型的样本像素个数  
+		double n = sampleCounts[ci]; //第ci个高斯模型的样本像素个数  
 		if (n == 0)
 			coefs[ci] = 0;
 		else
