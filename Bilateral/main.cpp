@@ -161,42 +161,52 @@ void GCApplication::setLblsInMask(int flags, Point p, bool isPr)
 	}
 }
 
+//void GCApplication::reLblsInMask(Point pC, Point pCenter, bool isFGD)
+//{
+//	uchar value = isFGD ? GC_FGD : GC_BGD;
+//	uchar canDoLbl = isFGD ? GC_PR_BGD : GC_PR_FGD;
+//	Scalar pxls = isFGD ? RED : BLUE;
+//
+//	vector<Point> pointList;
+//	pointList.push_back(pC);
+//
+//	while (!pointList.empty())
+//	{
+//		Point pCurrent = pointList.back();
+//		pointList.pop_back();
+//		if (mask.at<uchar>(pCurrent) == GC_INIT || mask.at<uchar>(pCurrent) == canDoLbl) {
+//			circle(res, pCurrent, 1, pxls, thickness);
+//			circle(mask, pCurrent, 1, value, thickness);
+//			Point p;
+//			for (p.x = pCurrent.x - 1; p.x < pCurrent.x + 2;p.x++) {
+//				for (p.y = pCurrent.y - 1; p.y < pCurrent.y + 2;p.y++) {
+//					if (p.x >= 0 && p.y >= 0 && p.x < image->cols - 1 && p.y < image->rows - 1) {
+//						Vec3b color1 = image->at<Vec3b>(p);
+//						Vec3b color2 = image->at<Vec3b>(pCurrent);
+//						Vec3b color3 = image->at<Vec3b>(pCenter);
+//						Vec3d diff12 = (Vec3d)color1 - (Vec3d)color2;
+//						Vec3d diff13 = (Vec3d)color1 - (Vec3d)color3;
+//						bool p_pCurrent = diff12.dot(diff12) <= 128;
+//						bool p_pCenter = diff13.dot(diff13) <= 256;
+//						if (p_pCurrent && p_pCenter && (mask.at<uchar>(p) == GC_INIT || mask.at<uchar>(p) == canDoLbl)) {
+//							Point ptemp = p;
+//							pointList.push_back(ptemp);
+//						}
+//					}
+//				}
+//			}
+//		}
+//	}
+//}
+
 void GCApplication::reLblsInMask(Point pC, Point pCenter, bool isFGD)
 {
 	uchar value = isFGD ? GC_FGD : GC_BGD;
 	uchar canDoLbl = isFGD ? GC_PR_BGD : GC_PR_FGD;
 	Scalar pxls = isFGD ? RED : BLUE;
-
-	vector<Point> pointList;
-	pointList.push_back(pC);
-
-	while (!pointList.empty())
-	{
-		Point pCurrent = pointList.back();
-		pointList.pop_back();
-		if (mask.at<uchar>(pCurrent) == GC_INIT || mask.at<uchar>(pCurrent) == canDoLbl) {
-			circle(res, pCurrent, 1, pxls, thickness);
-			circle(mask, pCurrent, 1, value, thickness);
-			Point p;
-			for (p.x = pCurrent.x - 1; p.x < pCurrent.x + 2;p.x++) {
-				for (p.y = pCurrent.y - 1; p.y < pCurrent.y + 2;p.y++) {
-					if (p.x >= 0 && p.y >= 0 && p.x < image->cols - 1 && p.y < image->rows - 1) {
-						Vec3b color1 = image->at<Vec3b>(p);
-						Vec3b color2 = image->at<Vec3b>(pCurrent);
-						Vec3b color3 = image->at<Vec3b>(pCenter);
-						Vec3d diff12 = (Vec3d)color1 - (Vec3d)color2;
-						Vec3d diff13 = (Vec3d)color1 - (Vec3d)color3;
-						bool p_pCurrent = diff12.dot(diff12) <= 128;
-						bool p_pCenter = diff13.dot(diff13) <= 256;
-						if (p_pCurrent && p_pCenter && (mask.at<uchar>(p) == GC_INIT || mask.at<uchar>(p) == canDoLbl)) {
-							Point ptemp = p;
-							pointList.push_back(ptemp);
-						}
-					}
-				}
-			}
-		}
-	}
+	circle(res, pC, 2, pxls, thickness);
+	circle(mask, pC, 2, value, thickness);
+			
 }
 
 void GCApplication::mouseClick(int event, int x, int y, int flags, void*)
@@ -297,7 +307,7 @@ static void on_mouse(int event, int x, int y, int flags, void* param)
 
 
 int main() {
-	imgSrc = imread("E:/Projects/OpenCV/DAVIS-data/examples/cake.png");
+	imgSrc = imread("E:/Projects/OpenCV/DAVIS-data/examples/lotus.png");
 
 	Mat gcappImg;
 	const string winName = "原图像";
@@ -323,7 +333,8 @@ int main() {
 			_time = (static_cast<double>(getTickCount()) - _time) / getTickFrequency();
 			printf("分割用时为%f\n", _time);//显示时间
 
-			Mat maskBlur, lastImg;
+			Mat maskBlur;
+			Mat lastImg(mask.size(), CV_8UC3, cv::Scalar(81, 249, 182));
 			medianBlur(mask, maskBlur, 5);
 			imgSrc.copyTo(lastImg, maskBlur);
 
