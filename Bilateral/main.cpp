@@ -307,7 +307,7 @@ static void on_mouse(int event, int x, int y, int flags, void* param)
 
 
 int main() {
-	imgSrc = imread("E:/Projects/OpenCV/DAVIS-data/examples/lotus.png");
+	imgSrc = imread("E:/Projects/OpenCV/DAVIS-data/examples/11_1.jpg");
 
 	Mat gcappImg;
 	const string winName = "原图像";
@@ -335,13 +335,22 @@ int main() {
 
 			Mat maskBlur;
 			Mat lastImg(mask.size(), CV_8UC3, cv::Scalar(81, 249, 182));
-			medianBlur(mask, maskBlur, 5);
-			imgSrc.copyTo(lastImg, maskBlur);
+			//medianBlur(mask, maskBlur, 3);
+			imgSrc.copyTo(lastImg, mask);
+
+			Mat proMask;
+			bilateral.getGmmProMask(proMask);
+
+			imshow("分割结果", lastImg);
+			imshow("概率图", proMask);
 
 			string name = "E:/Projects/OpenCV/DAVIS-data/examples/output/11.bmp";
 			imwrite(name, lastImg);
-
-			imshow("分割结果", lastImg);
+			string name1 = "E:/Projects/OpenCV/DAVIS-data/examples/output/12.bmp";
+			imwrite(name1, gcapp.res);
+			string name2 = "E:/Projects/OpenCV/DAVIS-data/examples/output/13.bmp";
+			imwrite(name2, proMask);
+			
 		}
 	}
 

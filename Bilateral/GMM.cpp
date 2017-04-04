@@ -1,5 +1,6 @@
 #include "GMM.h"
-
+#include <iostream>
+#include <fstream>
 
 
 //背景和前景各有一个对应的GMM（混合高斯模型）  
@@ -30,6 +31,35 @@ GMM::GMM(Mat& _model)
 			//计算GMM中第ci个高斯模型的协方差的逆Inverse和行列式Determinant  
 			//为了后面计算每个像素属于该高斯模型的概率（也就是数据能量项）  
 			calcInverseCovAndDeterm(ci);
+	for (int ci = 0; ci < componentsCount; ci++) {
+		//res += coefs[ci] * (*this)(ci, color);
+		double* m = mean + 3 * ci;
+		double* c = cov + 9 * ci;
+		Vec3d m1Color = { m[0] +  sqrt(c[0]),m[1] + sqrt(c[4]),m[2] +  sqrt(c[8]) };
+		p1Cov[ci] = (*this)(ci, m1Color);
+		Vec3d m2Color = { m[0] + 2 * sqrt(c[0]),m[1] + 2 * sqrt(c[4]),m[2] + 2 * sqrt(c[8]) };
+		p3Cov[ci]=(*this)(ci, m2Color);
+	}
+
+}
+
+void GMM::save() {
+	std::ofstream f1("E:/Projects/OpenCV/DAVIS-data/examples/output/gmm.txt");
+	if (!f1)return;
+	for (int ci = 0; ci < componentsCount; ci++) {
+		f1<<coefs[ci]<<" ";
+	}
+	f1 << std::endl;
+	for (int ci = 0; ci < componentsCount; ci++) {
+		double* m = mean + 3 * ci;
+		f1 << m[0] << " ";
+	}
+	f1 << std::endl;
+	for (int ci = 0; ci < componentsCount; ci++) {
+		double* c = cov + 9 * ci;
+		f1 << sqrt(c[0]) << " " ;
+	}
+	f1.close();
 }
 
 //计算一个像素（由color=（B,G,R）三维double型向量来表示）属于这个GMM混合高斯模型的概率。  
@@ -154,6 +184,15 @@ void GMM::endLearning()
 			calcInverseCovAndDeterm(ci);
 		}
 	}
+	for (int ci = 0; ci < componentsCount; ci++) {
+		//res += coefs[ci] * (*this)(ci, color);
+		double* m = mean + 3 * ci;
+		double* c = cov + 9 * ci;
+		Vec3d m1Color = { m[0] + sqrt(c[0]),m[1] + sqrt(c[4]),m[2] + sqrt(c[8]) };
+		p1Cov[ci] = (*this)(ci, m1Color);
+		Vec3d m2Color = { m[0] + 2 * sqrt(c[0]),m[1] + 2 * sqrt(c[4]),m[2] + 2 * sqrt(c[8]) };
+		p3Cov[ci] = (*this)(ci, m2Color);
+	}
 }
 
 //计算协方差的逆Inverse和行列式Determinant  
@@ -185,4 +224,22 @@ void GMM::calcInverseCovAndDeterm(int ci)
 		inverseCovs[ci][1][2] = -(c[0] * c[5] - c[2] * c[3]) / dtrm;
 		inverseCovs[ci][2][2] = (c[0] * c[4] - c[1] * c[3]) / dtrm;
 	}
+}
+
+bool GMM::bigThan1Cov(const Vec3d color) const {
+	for (int ci = 0; ci < componentsCount; ci++) {
+		if ((*this)(ci, color) > p1Cov[ci]) {
+			return true;
+		}
+	}
+	return false;
+}
+
+bool GMM::smallThan2Cov(const Vec3d color) const {
+	for (int ci = 0; ci < componentsCount; ci++) {
+		if ((*this)(ci,color) >p3Cov[ci]) {
+			return false;
+		}
+	}
+	return true;
 }

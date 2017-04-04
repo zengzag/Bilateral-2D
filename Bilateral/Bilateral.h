@@ -1,5 +1,6 @@
 #pragma once
 #include "opencv2/imgproc.hpp"
+#include <opencv2/highgui/highgui.hpp>
 #include "GMM.h"
 #include "gcgraph.hpp"
 
@@ -20,14 +21,16 @@ class Bilateral
 public:
 	Mat imgSrc;	 //输入图片数据
 	Mat bgModel, fgModel, unModel;	//前背景高斯模型
-	Mat grid,gridColor;	//升维，平均取点，得到的grid。6维数组，保存顶点值与邻近像素点总数。
+	Mat grid,gridColor, gridProbable;	//升维，平均取点，得到的grid。6维数组，保存顶点值与邻近像素点总数。
 	bool haveUnModel;//unModel是否存在
-	const int gridSize[6] = { 1,30,50,16,16,16 };	//grid各个维度的大小,按顺序来为：t,x,y,r,g,b。
+	int gridSize[6] = { 1,15,20,1,1,1 };	//grid各个维度的大小,按顺序来为：t,x,y,r,g,b。
 public:
 	Bilateral(Mat img);
 	~Bilateral();
 	void InitGmms(Mat& );
 	void run(Mat& );
+	void getGmmProMask(Mat& mask);
+	void savePreImg(std::string path, GCGraph<double>& graph);
 private:
 	void initGrid();
 	void constructGCGraph(GCGraph<double>& graph);

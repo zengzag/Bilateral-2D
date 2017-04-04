@@ -2,8 +2,11 @@
 #include <iostream>
 #include <fstream>
 
+
 Bilateral::Bilateral(Mat img) :
 	imgSrc(img) {
+	gridSize[1] = img.rows;
+	gridSize[2] = img.cols;
 	initGrid();
 }
 
@@ -87,6 +90,31 @@ void Bilateral::InitGmms(Mat& mask)
 		}
 	}
 
+
+	/*std::vector<double> data(256,0.0);
+	std::ofstream f1("E:/Projects/OpenCV/DAVIS-data/examples/output/color.txt");
+	if (!f1)return;
+	int sunbgd = bgdSamples.size();
+	for (int i = sunbgd - 1; i >= 0 ; i--) {
+		Vec3f color = bgdSamples[i];
+		data[(int)color[0]]++;
+	}
+	for (int i = 0; i < 256; i++) {
+		f1 << data[i]/ sunbgd << std::endl;
+	}
+	f1.close();*/
+
+	std::ofstream f1("E:/Projects/OpenCV/DAVIS-data/examples/output/color2.txt");
+	if (!f1)return;
+	for (int i = bgdSamples.size() - 1; i >= 0; i--) {
+		Vec3f color = bgdSamples[i];
+		f1 << color[0] << std::endl;
+	}
+	f1.close();
+
+
+
+
 	GMM bgdGMM(bgModel), fgdGMM(fgModel);
 
 	const int kMeansItCount = 10;  //迭代次数  
@@ -135,22 +163,19 @@ void Bilateral::InitGmms(Mat& mask)
 
 
 	std::vector<Vec3f> unSamples;    //错误分类点
-	std::vector<double>  unWeight;
 
 	for (int i = 0; i < (int)bgdSamples.size(); i++) {
 		Vec3d color = bgdSamples[i];
 		double b = bgdGMM(color), f = fgdGMM(color);
-		if (b < f) {
+		if (fgdGMM.bigThan1Cov(color) || (b < f)) {
 			unSamples.push_back(color);
-			unWeight.push_back((f - b) / f);
 		}
 	}
 	for (int i = 0; i < (int)fgdSamples.size(); i++) {
 		Vec3d color = fgdSamples[i];
 		double b = bgdGMM(color), f = fgdGMM(color);
-		if (b > f) {
+		if (bgdGMM.bigThan1Cov(color) || (b > f)) {
 			unSamples.push_back(color);
-			unWeight.push_back((b - f) / b);
 		}
 	}
 	if (unSamples.size() < 10) {
@@ -165,7 +190,7 @@ void Bilateral::InitGmms(Mat& mask)
 			TermCriteria(CV_TERMCRIT_ITER, kMeansItCount, 0.0), 0, kMeansType);
 		unGMM.initLearning();
 		for (int i = 0; i < (int)unSamples.size(); i++)
-			unGMM.addSample(unLabels.at<int>(i, 0), unSamples[i], unWeight[i]);
+			unGMM.addSample(unLabels.at<int>(i, 0), unSamples[i], 1);
 		unGMM.endLearning();
 		for (int times = 0; times < 3; times++)
 		{
@@ -176,7 +201,7 @@ void Bilateral::InitGmms(Mat& mask)
 			}
 			unGMM.initLearning();
 			for (int i = 0; i < (int)unSamples.size(); i++)
-				unGMM.addSample(unLabels.at<int>(i, 0), unSamples[i], unWeight[i]);
+				unGMM.addSample(unLabels.at<int>(i, 0), unSamples[i], 1);
 			unGMM.endLearning();
 		}
 
@@ -192,8 +217,8 @@ void Bilateral::initGrid() {
 
 	Mat L(6, gridSize, CV_32SC(4), Scalar(0, 0, 0, -1));
 	Mat C(6, gridSize, CV_32FC(3), Scalar::all(0));
-	grid = L;
-	gridColor = C;
+	Mat P(6, gridSize, CV_32FC(3), Scalar::all(0));
+	grid = L;gridColor = C;gridProbable = P;
 	int tSize = 1;
 	int xSize = imgSrc.rows;
 	int ySize = imgSrc.cols;
@@ -221,8 +246,54 @@ void Bilateral::initGrid() {
 			}
 		}
 	}
+
+	
+
 	_time = (static_cast<double>(getTickCount()) - _time) / getTickFrequency();
 	printf("构建grid用时%f\n", _time);//显示时间
+}
+
+void Bilateral::savePreImg(std::string path,GCGraph<double>& graph) {
+	int tSize = 1;
+	int xSize = imgSrc.rows;
+	int ySize = imgSrc.cols;
+	Mat randColor(6, gridSize, CV_8UC3, Scalar::all(0));
+	
+	for (int t = 0; t < gridSize[0]; t++) {
+		for (int x = 0; x < gridSize[1]; x++) {
+			for (int y = 0; y < gridSize[2]; y++) {
+				for (int r = 0; r < gridSize[3]; r++) {
+					for (int g = 0; g < gridSize[4]; g++) {
+						for (int b = 0; b < gridSize[5]; b++) {
+							int point[6] = { t,x,y,r,g,b };
+							if (grid.at<Vec< int, 4 > >(point)[pixSum] > 0) {
+								int vertex = grid.at<Vec< int, 4 > >(point)[vIdx];
+								if (graph.inSourceSegment(vertex))
+									randColor.at<Vec3b>(point) = { (uchar)(rand() % 200),(uchar)(rand() % 200),(uchar)(rand() % 200) };
+								else
+									randColor.at<Vec3b>(point) = { (uchar)(rand() % 155+100),(uchar)(rand() % 155 + 100),(uchar)(rand() % 155 + 100) };
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	Mat preSegImg(imgSrc.rows, imgSrc.cols, CV_8UC3);
+	for (int y = 0; y < ySize; y++)
+	{
+		for (int x = 0; x < xSize; x++)
+		{
+			Point p(x, y);
+			int point[6] = { 0,0,0,0,0,0 };
+			getGridPoint(0, p, point, tSize, xSize, ySize);
+			Vec3b colorMeans = randColor.at<Vec3b>(point);
+			preSegImg.at<Vec3b>(x, y) = colorMeans;
+		}
+	}
+	randColor.release();
+	imwrite(path, preSegImg);
 }
 
 static double calcBeta(const Mat& img)
@@ -274,7 +345,7 @@ void Bilateral::constructGCGraph(GCGraph<double>& graph) {
 	graph.create(vtxCount, edgeCount);
 	int eCount = 0, eCount2 = 0, eCount3 = 0;
 	GMM bgdGMM(bgModel), fgdGMM(fgModel), unGMM(unModel);
-
+	bgdGMM.save();
 	for (int t = 0; t < gridSize[0]; t++) {
 		for (int x = 0; x < gridSize[1]; x++) {
 			for (int y = 0; y < gridSize[2]; y++) {
@@ -296,10 +367,12 @@ void Bilateral::constructGCGraph(GCGraph<double>& graph) {
 								if ((bSum > 0) && fSum == 0) {
 									fromSource = 0;
 									toSink = 9999;
+									gridProbable.at<Vec3f>(point)[0] = 0;
 								}
 								else if (bSum == 0 && (fSum > 0)) {
 									fromSource = 9999;
 									toSink = 0;
+									gridProbable.at<Vec3f>(point)[0] = 1;
 								}
 								else {
 									double bgd = bgdGMM(color);
@@ -309,14 +382,16 @@ void Bilateral::constructGCGraph(GCGraph<double>& graph) {
 										un = unGMM(color);
 									else
 										un = 0;
-									double unWeight = 1.0 - (un / (bgd + fgd + un));//颜色模型权重。
-									if (unWeight < 0.5) {
+
+									if ((unGMM.bigThan1Cov(color)) || (bgdGMM.smallThan2Cov(color) && fgdGMM.smallThan2Cov(color))) {
 										bgd = fgd;
 										eCount3++;
 									}
-									//unWeight = 0.5;	sumWeight = 0.5;
-									fromSource = (-log(bgd / (bgd + fgd))*unWeight)*sqrt(pixCount);
-									toSink = (-log(fgd / (bgd + fgd))*unWeight)*sqrt(pixCount);
+
+									gridProbable.at<Vec3f>(point)[0] = fgd / (bgd + fgd);
+
+									fromSource = -log(bgd)*sqrt(pixCount);
+									toSink = -log(fgd)*sqrt(pixCount);
 								}
 								graph.addTermWeights(vtxIdx, fromSource, toSink);
 
@@ -333,7 +408,7 @@ void Bilateral::constructGCGraph(GCGraph<double>& graph) {
 															double num = sqrt(grid.at<Vec< int, 4 > >(point)[pixSum] * grid.at<Vec< int, 4 > >(pointN)[pixSum] + 1);
 															Vec3d diff = (Vec3d)color - (Vec3d)gridColor.at<Vec3f>(pointN);
 															double e = exp(-bata*diff.dot(diff));  //矩阵的点乘，也就是各个元素平方的和
-															double w = 1.0 * e * sqrt(num);
+															double w = 100.0 * e * sqrt(num);
 															graph.addEdges(vtxIdx, vtxIdxNew, w, w);
 															eCount++;
 														}
@@ -343,6 +418,8 @@ void Bilateral::constructGCGraph(GCGraph<double>& graph) {
 										}
 									}
 								}
+
+
 								/*for (int tN = t; tN >= 0 && tN > t - 2;tN--) {
 									for (int xN = 0; xN < x; xN++) {
 										for (int yN = 0; yN < gridSize[2]; yN++) {
@@ -428,7 +505,6 @@ void Bilateral::estimateSegmentation(GCGraph<double>& graph, Mat& mask) {
 	{
 		for (int y = 0; y < ySize; y++)
 		{
-#pragma omp parallel for
 			for (int x = 0; x < xSize; x++)
 			{
 				Point p(x, y);
@@ -502,7 +578,23 @@ void Bilateral::getColor() {
 }
 
 
+void Bilateral::getGmmProMask(Mat& mask) {
+	mask = Mat::zeros(imgSrc.rows, imgSrc.cols, CV_8UC1);
+	int xSize = imgSrc.rows;
+	int ySize = imgSrc.cols;
+	for (int y = 0; y < ySize; y++)
+	{
+		for (int x = 0; x < xSize; x++)
+		{
+			Point p(x, y);
+			int point[6] = { 0,0,0,0,0,0 };
+			getGridPoint(0, p, point, 1, xSize, ySize);
+			float probable = gridProbable.at<Vec3f>(point)[0];
+			mask.at<uchar>(p.x, p.y) = (uchar)(probable * 255);
+		}
+	}
 
+}
 
 void Bilateral::run(Mat& mask) {
 
@@ -513,5 +605,5 @@ void Bilateral::run(Mat& mask) {
 	constructGCGraph(graph);
 	//getColor();
 	estimateSegmentation(graph, mask);
-
+	savePreImg("E:/Projects/OpenCV/DAVIS-data/examples/output/14.bmp", graph);
 }

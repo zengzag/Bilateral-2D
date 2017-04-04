@@ -17,7 +17,9 @@ public:
 	void initLearning();
 	void addSample(int ci, const Vec3d color, double weight);
 	void endLearning();
-
+	bool bigThan1Cov(const Vec3d color )const;
+	bool smallThan2Cov(const Vec3d color)const;
+	void save();
 private:
 	void calcInverseCovAndDeterm(int ci);
 	Mat model;
@@ -27,6 +29,9 @@ private:
 
 	double inverseCovs[componentsCount][3][3]; //协方差的逆矩阵  
 	double covDeterms[componentsCount];  //协方差的行列式  
+
+	double p1Cov[componentsCount];
+	double p3Cov[componentsCount];
 
 	double sums[componentsCount][3];
 	double prods[componentsCount][3][3];
