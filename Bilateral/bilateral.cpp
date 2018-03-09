@@ -5,8 +5,8 @@
 
 Bilateral::Bilateral(Mat img) :
 	imgSrc(img) {
-	gridSize[1] = img.rows;
-	gridSize[2] = img.cols;
+	gridSize[1] = img.rows/50;
+	gridSize[2] = img.cols/50;
 	initGrid();
 }
 
@@ -18,7 +18,7 @@ Bilateral::~Bilateral()
 
 void Bilateral::InitGmms(Mat& mask)
 {
-	double _time = static_cast<double>(getTickCount());//计时
+	
 
 
 	int tSize = 1;
@@ -104,16 +104,22 @@ void Bilateral::InitGmms(Mat& mask)
 	}
 	f1.close();*/
 
-	std::ofstream f1("E:/Projects/OpenCV/DAVIS-data/examples/output/color2.txt");
-	if (!f1)return;
+	std::ofstream f1("E:/Projects/OpenCV/DAVIS-data/examples/output/Bcolor.txt");
+	std::ofstream f2("E:/Projects/OpenCV/DAVIS-data/examples/output/Fcolor.txt");
+	if (!f1||!f2)return;
 	for (int i = bgdSamples.size() - 1; i >= 0; i--) {
 		Vec3f color = bgdSamples[i];
-		f1 << color[0] << std::endl;
+		f1 << color[2] << "\t" << color[1] << "\t" << color[0] << std::endl;
+	}
+	for (int i = fgdSamples.size() - 1; i >= 0; i--) {
+		Vec3f color = fgdSamples[i];
+		f2 << color[2] << "\t" << color[1] << "\t" << color[0] << std::endl;
 	}
 	f1.close();
+	f2.close();
 
 
-
+	double _time = static_cast<double>(getTickCount());//计时
 
 	GMM bgdGMM(bgModel), fgdGMM(fgModel);
 
@@ -247,18 +253,18 @@ void Bilateral::initGrid() {
 		}
 	}
 
-	
+
 
 	_time = (static_cast<double>(getTickCount()) - _time) / getTickFrequency();
 	printf("构建grid用时%f\n", _time);//显示时间
 }
 
-void Bilateral::savePreImg(std::string path,GCGraph<double>& graph) {
+void Bilateral::savePreImg(std::string path, GCGraph<double>& graph) {
 	int tSize = 1;
 	int xSize = imgSrc.rows;
 	int ySize = imgSrc.cols;
 	Mat randColor(6, gridSize, CV_8UC3, Scalar::all(0));
-	
+
 	for (int t = 0; t < gridSize[0]; t++) {
 		for (int x = 0; x < gridSize[1]; x++) {
 			for (int y = 0; y < gridSize[2]; y++) {
@@ -268,10 +274,11 @@ void Bilateral::savePreImg(std::string path,GCGraph<double>& graph) {
 							int point[6] = { t,x,y,r,g,b };
 							if (grid.at<Vec< int, 4 > >(point)[pixSum] > 0) {
 								int vertex = grid.at<Vec< int, 4 > >(point)[vIdx];
-								if (graph.inSourceSegment(vertex))
+								/*if (graph.inSourceSegment(vertex))
 									randColor.at<Vec3b>(point) = { (uchar)(rand() % 200),(uchar)(rand() % 200),(uchar)(rand() % 200) };
 								else
-									randColor.at<Vec3b>(point) = { (uchar)(rand() % 155+100),(uchar)(rand() % 155 + 100),(uchar)(rand() % 155 + 100) };
+									randColor.at<Vec3b>(point) = { (uchar)(rand() % 155 + 100),(uchar)(rand() % 155 + 100),(uchar)(rand() % 155 + 100) };*/
+								randColor.at<Vec3b>(point) = { (uchar)(rand() % 255),(uchar)(rand() % 255),(uchar)(rand() % 255) };
 							}
 						}
 					}
@@ -345,7 +352,13 @@ void Bilateral::constructGCGraph(GCGraph<double>& graph) {
 	graph.create(vtxCount, edgeCount);
 	int eCount = 0, eCount2 = 0, eCount3 = 0;
 	GMM bgdGMM(bgModel), fgdGMM(fgModel), unGMM(unModel);
-	bgdGMM.save();
+	bgdGMM.save("E:/Projects/OpenCV/DAVIS-data/examples/output/Bgmm.txt");
+	fgdGMM.save("E:/Projects/OpenCV/DAVIS-data/examples/output/Fgmm.txt");
+
+	Mat Tmask = imread("E:/Projects/OpenCV/DAVIS-data/examples/207954.png", IMREAD_GRAYSCALE);
+	double gain = 0;
+	double err = 0;
+
 	for (int t = 0; t < gridSize[0]; t++) {
 		for (int x = 0; x < gridSize[1]; x++) {
 			for (int y = 0; y < gridSize[2]; y++) {
@@ -366,58 +379,69 @@ void Bilateral::constructGCGraph(GCGraph<double>& graph) {
 								//综合方法
 								if ((bSum > 0) && fSum == 0) {
 									fromSource = 0;
-									toSink = 9999;
+									toSink = 99999;
 									gridProbable.at<Vec3f>(point)[0] = 0;
 								}
 								else if (bSum == 0 && (fSum > 0)) {
-									fromSource = 9999;
+									fromSource = 99999;
 									toSink = 0;
 									gridProbable.at<Vec3f>(point)[0] = 1;
 								}
 								else {
 									double bgd = bgdGMM(color);
 									double fgd = fgdGMM(color);
-									double un;//颜色模型的可信度,越大越不可信。
+									bool un;
 									if (haveUnModel)
-										un = unGMM(color);
+										un = unGMM.bigThan1Cov(color);
 									else
-										un = 0;
+										un = false;
 
-									if ((unGMM.bigThan1Cov(color)) || (bgdGMM.smallThan2Cov(color) && fgdGMM.smallThan2Cov(color))) {
-										bgd = fgd;
+									if (un||(bgdGMM.smallThan2Cov(color) && fgdGMM.smallThan2Cov(color))) {
+										bgd = fgd = 0.5;
 										eCount3++;
 									}
 
 									gridProbable.at<Vec3f>(point)[0] = fgd / (bgd + fgd);
 
-									fromSource = -log(bgd)*sqrt(pixCount);
-									toSink = -log(fgd)*sqrt(pixCount);
+									/*double temp = abs(fgd - bgd) / (fgd + bgd);
+									if (Tmask.at<uchar>(x, y) == 0 && (fgd > bgd)) {
+										err += temp;
+									}
+									else{
+										gain += temp;
+									}*/
+
+									fromSource = -log(bgd)*(pixCount);
+									toSink = -log(fgd)*(pixCount);
+									//printf("%f\n", fromSource);//显示时间
 								}
+								
 								graph.addTermWeights(vtxIdx, fromSource, toSink);
 
 								//平滑项
-								for (int tN = t; tN > t - 2 && tN >= 0 && tN < gridSize[0]; tN--) {
-									for (int xN = x; xN > x - 2 && xN >= 0 && xN < gridSize[1]; xN--) {
-										for (int yN = y; yN > y - 2 && yN >= 0 && yN < gridSize[2]; yN--) {
-											for (int rN = r; rN > r - 2 && rN >= 0 && rN < gridSize[3]; rN--) {
-												for (int gN = g; gN > g - 2 && gN >= 0 && gN < gridSize[4]; gN--) {
-													for (int bN = b; bN > b - 2 && bN >= 0 && bN < gridSize[5]; bN--) {
-														int pointN[6] = { tN,xN,yN,rN,gN,bN };
-														int vtxIdxNew = grid.at<Vec< int, 4 > >(pointN)[vIdx];
-														if (grid.at<Vec< int, 4 > >(pointN)[pixSum] > 0 && vtxIdxNew > 0 && vtxIdxNew != vtxIdx) {
-															double num = sqrt(grid.at<Vec< int, 4 > >(point)[pixSum] * grid.at<Vec< int, 4 > >(pointN)[pixSum] + 1);
-															Vec3d diff = (Vec3d)color - (Vec3d)gridColor.at<Vec3f>(pointN);
-															double e = exp(-bata*diff.dot(diff));  //矩阵的点乘，也就是各个元素平方的和
-															double w = 100.0 * e * sqrt(num);
-															graph.addEdges(vtxIdx, vtxIdxNew, w, w);
-															eCount++;
-														}
+
+								for (int xN = x; xN >= x - 1 && xN >= 0 && xN < gridSize[1]; xN--) {
+									for (int yN = y; yN >= y - 1 && yN >= 0 && yN < gridSize[2]; yN--) {
+										for (int rN = r; rN >= r - 1 && rN >= 0 && rN < gridSize[3]; rN--) {
+											for (int gN = g; gN >= g - 1 && gN >= 0 && gN < gridSize[4]; gN--) {
+												for (int bN = b; bN >= b - 1 && bN >= 0 && bN < gridSize[5]; bN--) {
+													int pointN[6] = { 0,xN,yN,rN,gN,bN };
+													int vtxIdxNew = grid.at<Vec< int, 4 > >(pointN)[vIdx];
+													if (grid.at<Vec< int, 4 > >(pointN)[pixSum] > 0 && vtxIdxNew > 0 && vtxIdxNew != vtxIdx) {
+														double num = sqrt(grid.at<Vec< int, 4 > >(point)[pixSum] * grid.at<Vec< int, 4 > >(pointN)[pixSum] + 1);
+														Vec3d diff = (Vec3d)color - (Vec3d)gridColor.at<Vec3f>(pointN);
+														double e = exp(-bata*diff.dot(diff));  //矩阵的点乘，也就是各个元素平方的和
+														double w = 20. * e * (num);
+														//w = 14.;
+														graph.addEdges(vtxIdx, vtxIdxNew, w, w);
+														eCount++;
 													}
 												}
 											}
 										}
 									}
 								}
+
 
 
 								/*for (int tN = t; tN >= 0 && tN > t - 2;tN--) {
@@ -453,7 +477,7 @@ void Bilateral::constructGCGraph(GCGraph<double>& graph) {
 		}
 	}
 
-
+	//printf("gain:%f err:%f\n", gain/ vtxCount , err/ vtxCount);
 	_time = (static_cast<double>(getTickCount()) - _time) / getTickFrequency();
 	printf("图割构图用时 %f\n", _time);//显示时间
 	printf("顶点的总数 %d\n", vtxCount);

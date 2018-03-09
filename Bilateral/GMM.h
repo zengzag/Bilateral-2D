@@ -19,7 +19,7 @@ public:
 	void endLearning();
 	bool bigThan1Cov(const Vec3d color )const;
 	bool smallThan2Cov(const Vec3d color)const;
-	void save();
+	void save(std::string path);
 private:
 	void calcInverseCovAndDeterm(int ci);
 	Mat model;
@@ -30,7 +30,9 @@ private:
 	double inverseCovs[componentsCount][3][3]; //协方差的逆矩阵  
 	double covDeterms[componentsCount];  //协方差的行列式  
 
+	double arg_p1Cov = 1;
 	double p1Cov[componentsCount];
+	double arg_p3Cov = 2;
 	double p3Cov[componentsCount];
 
 	double sums[componentsCount][3];

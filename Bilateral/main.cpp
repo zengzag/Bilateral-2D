@@ -307,7 +307,7 @@ static void on_mouse(int event, int x, int y, int flags, void* param)
 
 
 int main() {
-	imgSrc = imread("E:/Projects/OpenCV/DAVIS-data/examples/11_1.jpg");
+	imgSrc = imread("E:/Projects/OpenCV/DAVIS-data/examples/test.png");
 
 	Mat gcappImg;
 	const string winName = "原图像";
@@ -327,6 +327,9 @@ int main() {
 		if (c == 's')   //键盘输入S实现分割
 		{
 			double _time = static_cast<double>(getTickCount());
+			string name3 = "E:/Projects/OpenCV/DAVIS-data/examples/output/mask.bmp";
+			imwrite(name3, gcapp.mask);
+			//Mat gmask = imread(name3, IMREAD_GRAYSCALE);
 			Bilateral bilateral(imgSrc);
 			bilateral.InitGmms(gcapp.mask);//gcapp.mask   tureMask
 			bilateral.run(mask);

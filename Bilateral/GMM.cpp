@@ -35,16 +35,16 @@ GMM::GMM(Mat& _model)
 		//res += coefs[ci] * (*this)(ci, color);
 		double* m = mean + 3 * ci;
 		double* c = cov + 9 * ci;
-		Vec3d m1Color = { m[0] +  sqrt(c[0]),m[1] + sqrt(c[4]),m[2] +  sqrt(c[8]) };
+		Vec3d m1Color = { m[0] + arg_p1Cov*sqrt(c[0]),m[1] + arg_p1Cov*sqrt(c[4]),m[2] + arg_p1Cov* sqrt(c[8]) };
 		p1Cov[ci] = (*this)(ci, m1Color);
-		Vec3d m2Color = { m[0] + 2 * sqrt(c[0]),m[1] + 2 * sqrt(c[4]),m[2] + 2 * sqrt(c[8]) };
+		Vec3d m2Color = { m[0] + arg_p3Cov * sqrt(c[0]),m[1] + arg_p3Cov * sqrt(c[4]),m[2] + arg_p3Cov * sqrt(c[8]) };
 		p3Cov[ci]=(*this)(ci, m2Color);
 	}
 
 }
 
-void GMM::save() {
-	std::ofstream f1("E:/Projects/OpenCV/DAVIS-data/examples/output/gmm.txt");
+void GMM::save(std::string path) {
+	std::ofstream f1(path);
 	if (!f1)return;
 	for (int ci = 0; ci < componentsCount; ci++) {
 		f1<<coefs[ci]<<" ";
@@ -188,9 +188,9 @@ void GMM::endLearning()
 		//res += coefs[ci] * (*this)(ci, color);
 		double* m = mean + 3 * ci;
 		double* c = cov + 9 * ci;
-		Vec3d m1Color = { m[0] + sqrt(c[0]),m[1] + sqrt(c[4]),m[2] + sqrt(c[8]) };
+		Vec3d m1Color = { m[0] + arg_p1Cov*sqrt(c[0]),m[1] + arg_p1Cov*sqrt(c[4]),m[2] + arg_p1Cov*sqrt(c[8]) };
 		p1Cov[ci] = (*this)(ci, m1Color);
-		Vec3d m2Color = { m[0] + 2 * sqrt(c[0]),m[1] + 2 * sqrt(c[4]),m[2] + 2 * sqrt(c[8]) };
+		Vec3d m2Color = { m[0] + arg_p3Cov * sqrt(c[0]),m[1] + arg_p3Cov * sqrt(c[4]),m[2] + arg_p3Cov * sqrt(c[8]) };
 		p3Cov[ci] = (*this)(ci, m2Color);
 	}
 }
